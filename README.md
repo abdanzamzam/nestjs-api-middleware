@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # NestJS API Middleware
 
 A production-ready NestJS middleware service for wrapping external APIs with API key authentication.
@@ -174,3 +175,7 @@ npm run test
 ## License
 
 MIT
+=======
+# nestjs-api-middleware
+nestjs-api-middleware
+>>>>>>> e9b0463e4d2b1cbafd45d39a123355ec5125f785
