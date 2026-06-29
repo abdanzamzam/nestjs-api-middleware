@@ -1,0 +1,115 @@
+┌─────────────────────────────────────────────────────────────────┐
+│                    NestJS API Middleware                        │
+│                     Architecture Flow                           │
+└─────────────────────────────────────────────────────────────────┘
+
+┌──────────────┐
+│  Client App  │
+│              │
+│  (Mobile,    │
+│   Web, etc)  │
+└──────┬───────┘
+       │
+       │ HTTP Request with X-API-Key
+       │
+       ▼
+┌────────────────────────────────────────────────────────────────┐
+│                  NestJS Middleware Server                      │
+│                    http://localhost:3000                       │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  Admin API (/admin/api-keys)                         │    │
+│  │  - POST   Create API key                             │    │
+│  │  - GET    List all keys                              │    │
+│  │  - PATCH  Update key                                 │    │
+│  │  - DELETE Remove key                                 │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  Proxy API (/proxy/*)                                │    │
+│  │                                                       │    │
+│  │  1. API Key Guard                                    │    │
+│  │     ├─ Extract key from header/query                 │    │
+│  │     ├─ Validate against database                     │    │
+│  │     ├─ Check expiration                              │    │
+│  │     └─ Update lastUsedAt                             │    │
+│  │                                                       │    │
+│  │  2. Rate Limiter                                     │    │
+│  │     └─ Check request count per key                   │    │
+│  │                                                       │    │
+│  │  3. Proxy Service                                    │    │
+│  │     ├─ Forward request to target API                 │    │
+│  │     └─ Return response unchanged                     │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  Database (PostgreSQL)                               │    │
+│  │                                                       │    │
+│  │  api_keys table:                                     │    │
+│  │  - id (UUID)                                         │    │
+│  │  - key (hashed with bcrypt)                          │    │
+│  │  - name, serviceName                                 │    │
+│  │  - isActive, rateLimit                               │    │
+│  │  - lastUsedAt, expiresAt                             │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+       │
+       │ Forwarded request with TARGET_API_KEY
+       │
+       ▼
+┌──────────────────┐
+│   Target API     │
+│                  │
+│ (External API    │
+│  being wrapped)  │
+└──────┬───────────┘
+       │
+       │ Response
+       │
+       ▼
+┌──────────────┐
+│  Client App  │
+│              │
+│  Receives    │
+│  response    │
+└──────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+
+REQUEST FLOW EXAMPLE:
+
+1. Client sends:
+   GET http://localhost:3000/proxy/users?page=1
+   Header: X-API-Key: abc123...
+
+2. Middleware validates:
+   ✓ Key exists in database
+   ✓ Key is active
+   ✓ Not expired
+   ✓ Under rate limit
+
+3. Middleware forwards:
+   GET https://api.example.com/users?page=1
+   Header: Authorization: Bearer target_api_key
+
+4. Target API responds:
+   { "users": [...] }
+
+5. Middleware returns same response to client
+
+═══════════════════════════════════════════════════════════════
+
+API KEY LIFECYCLE:
+
+Create → Active → (Optional: Disable) → Delete
+   ↓        ↓
+   │    Track usage
+   │    (lastUsedAt)
+   │
+   Show plain key
+   (only once!)
+
+═══════════════════════════════════════════════════════════════
